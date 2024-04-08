@@ -1,19 +1,3 @@
-#  filename: main.py
-#  author: Yonah Aviv
-#  date created: 2020-11-10 6:21 p.m.
-#  last modified: 2020-11-18
-#  Pydash: Similar to Geometry Dash, a rhythm based platform game, but programmed using the pygame library in Python
-
-
-"""CONTROLS
-Anywhere -> ESC: exit
-Main menu -> 1: go to previous level. 2: go to next level. SPACE: start game.
-Game -> SPACE/UP: jump, and activate orb
-    orb: jump in midair when activated
-If you die or beat the level, press SPACE to restart or go to the next level
-
-"""
-
 import csv
 import os
 import random
@@ -63,7 +47,6 @@ class Player(pygame.sprite.Sprite):
     """Class for player. Holds update method, win and die variables, collisions and more."""
     win: bool
     died: bool
-    nearest_spike = None
 
     def __init__(self, image, platforms, pos, *groups):
         """
@@ -141,7 +124,7 @@ class Player(pygame.sprite.Sprite):
             if self.vel.y > 100: self.vel.y = 100
 
         # do x-axis collisions
-        self.collide(0, elements)
+        self.collide(0, self.platforms)
 
         # increment in y direction
         self.rect.top += self.vel.y
@@ -150,7 +133,7 @@ class Player(pygame.sprite.Sprite):
         self.onGround = False
 
         # do y-axis collisions
-        self.collide(self.vel.y, elements)
+        self.collide(self.vel.y, self.platforms)
 
         # check if we won or if player won
         # eval_outcome(self.win, self.died)
@@ -196,13 +179,6 @@ class Orb(Draw):
         super().__init__(image, pos, *groups)
 
 
-class Trick(Draw):
-    """block, but its a trick because you can go through it"""
-
-    def __init__(self, image, pos, *groups):
-        super().__init__(image, pos, *groups)
-
-
 class End(Draw):
     """place this at the end of the level"""
 
@@ -232,16 +208,11 @@ def init_level(map):
             if col == "Orb":
                 orbs.append([x, y])
                 Orb(orb, (x, y), elements)
-
-            if col == "T":
-                Trick(trick, (x, y), elements)
-
             if col == "End":
                 End(avatar, (x, y), elements)
             x += 32
         y += 32
         x = 0
-
 
 
 def blitRotate(surf, image, pos, originpos: tuple, angle: float):
@@ -276,12 +247,23 @@ def blitRotate(surf, image, pos, originpos: tuple, angle: float):
     surf.blit(rotated_image, origin)
 
 
+# def calc_distance(player):
+#     global elements
+#     min_dist_x = float("inf")
+#     obj = None
+#     for e in elements:
+#         if player.rect.centerx < e.rect.centerx and e.rect.centery < 496 and :
+#             cur_dist_x = e.rect.centerx - player.rect.centerx
+#             if cur_dist_x < min_dist_x:
+#                 min_dist_x = cur_dist_x
+#                 obj = e
+#     return (min_dist_x, obj)
 def calc_distance(player):
     global elements
     min_dist_x = float("inf")
     obj = None
     for e in elements:
-        if player.rect.centerx <= e.rect.centerx and e.rect.centery < 496:
+        if player.rect.centerx <= e.rect.centerx and e.rect.centery < 496 and player.rect.centery == e.rect.centery:
             cur_dist_x = e.rect.centerx - player.rect.centerx
             cur_dist_y = e.rect.centery - player.rect.centery
             if (cur_dist_x**2 + cur_dist_y**2)**0.5 < min_dist_x:
@@ -289,13 +271,6 @@ def calc_distance(player):
                 obj = e
     # print(min_dist_x)
     return (min_dist_x, obj)
-# def eval_outcome(won: bool, died: bool):
-#     """simple function to run the win or die screen after checking won or died"""
-#     if won:
-#         won_screen()
-#     if died:
-#         death_screen()
-
 
 
 def block_map(level_num):
@@ -309,26 +284,6 @@ def block_map(level_num):
         for row in trash:
             lvl.append(row)
     return lvl
-
-
-def start_screen():
-    """main menu. option to switch level, and controls guide, and game overview."""
-    global level
-    if not start:
-        screen.fill(BLACK)
-        if pygame.key.get_pressed()[pygame.K_1]:
-            level = 0
-        if pygame.key.get_pressed()[pygame.K_2]:
-            level = 1
-
-        welcome = font.render(f"Welcome to Pydash. choose level({level + 1}) by keypad", True, WHITE)
-
-        controls = font.render("Controls: jump: Space/Up exit: Esc", True, GREEN)
-
-        screen.blits([[welcome, (100, 100)], [controls, (100, 400)], [tip, (100, 500)]])
-
-        level_memo = font.render(f"Level {level + 1}.", True, (255, 255, 0))
-        screen.blit(level_memo, (100, 200))
 
 
 def reset():
@@ -360,32 +315,20 @@ def wait_for_key():
     while waiting:
         clock.tick(60)
         pygame.display.flip()
-
-        if not start:
-            start_screen()
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    start = True
-                    waiting = False
-                if event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-
 """
 Global variables
 """
-
 try:
     font = pygame.font.SysFont("lucidaconsole", 20)
 except Exception as e:
     print("exception")
 # square block face is main character the icon of the window is the block face
 try:
-    avatar = pygame.image.load(os.path.join("images","avatar.png"))  # load the main character
-    avatar = pygame.transform.smoothscale(avatar, (32, 32))
+    avatar = pygame.image.load(os.path.join("images", "avatar.png"))  # load the main character
+    avatar = pygame.transform.smoothscale(avatar, (25, 25))
     alpha_surf = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
 
     # sprite groups
@@ -420,8 +363,9 @@ particles = []
 orbs = []
 win_cubes = []
 
-# initialize level with
-levels = ["simple_2_modified.csv", "simple_2_modified.csv", "level_1.csv", "level_2.csv"]
+# Choose level for running
+levels = ["level_2.csv", "simple_2_modified.csv", "level_2.csv", "level_2.csv"]
+
 level_list = block_map(levels[level])
 level_width = (len(level_list[0]) * 30)
 level_height = len(level_list) * 30
@@ -437,102 +381,69 @@ text = font.render('image', False, (255, 255, 0))
 bg = pygame.image.load(os.path.join("images", "bg.png"))
 
 # create object of player class
-# player = Player(avatar, elements, (150, 150), player_sprite)
-
 # show tip on start and on death
 tip = font.render("tip: tap and hold for the first few seconds of the level", True, BLUE)
 score = 0
 generation = 0
+
+
 def run(genomes, config):
     reset()
     global keys, angle, score, CameraX, generation
     generation += 1
+    # print(generation)
     players = []
     nets = []
     player_sprites = []
-
     for i, g in genomes:
         net = neat.nn.FeedForwardNetwork.create(g, config)
         nets.append(net)
         g.fitness = 0
-
-
         player_sprites.append(pygame.sprite.Group())
         players.append(Player(avatar, elements, (150, 150), player_sprites[-1]))
-    for player in players:
-        player.vel.x = 6
-    CameraX = 6
-
     while True:
-
-
-            # eval_outcome(player.win, player.died)
-            # if keys[pygame.K_UP] or keys[pygame.K_SPACE]:
-            #     player.isjump = True
-
-        # Reduce the alpha of all pixels on this surface each frame.
-        # Control the fade2 speed with the alpha value.
-
+        score += 1
+        for player in players:
+            player.vel.x = 6
         alpha_surf.fill((255, 255, 255, 1), special_flags=pygame.BLEND_RGBA_MULT)
+
+        for i, _ in enumerate(players):
+            res = calc_distance(players[i])
+            output = [0]
+            if isinstance(res[1], Spike):
+                output = nets[i].activate((players[i].vel.x, players[i].vel.y,
+                                           players[i].rect.y, res[0], 1))
+
+            elif isinstance(res[1], Platform):
+                output = nets[i].activate((players[i].vel.x, players[i].vel.y,
+                                           players[i].rect.y, res[0], 2))
+            if output[0] > 0.8:
+                if players[i].onGround == True:
+                    players[i].isjump = True
+                    genomes[i][1].fitness -= 100
+                    player_sprites[i].update()
 
         for i, _ in enumerate(players):
             player_sprites[i].update()
             if players[i].died:
-                genomes[i][1].fitness -= 50
+                genomes[i][1].fitness -= 800
+                # if genomes[i][1].fitness == -1400 and players[i].win:
+                #     genomes[i][1].fitness = 0
+                # print(genomes[i][1].fitness)
                 players.pop(i)
                 player_sprites.pop(i)
                 nets.pop(i)
                 genomes.pop(i)
-          # for moving obstacles
-          # apply CameraX to all elements
+        CameraX = 6  # for moving obstacles
+        move_map()  # apply CameraX to all elements
         if len(players) == 0:
             break
         screen.blit(bg, (0, 0))  # Clear the screen(with the bg)
         screen.blit(alpha_surf, (0, 0))  # Blit the alpha_surf onto the screen.
-        # draw_stats(screen, coin_count(coins))
-        for i, _ in enumerate(players):
-            genomes[i][1].fitness += 1
-        for i, _ in enumerate(players):
-            res = calc_distance(players[i])
-
-            output = [0]
-            if isinstance(res[1], Spike):
-                players[i].nearest_spike = res[1]
-                output = nets[i].activate((players[i].rect.centery, res[0], res[1].rect.centery - players[i].rect.centery, 1))
-
-            elif isinstance(res[1], Platform):
-                output = nets[i].activate((players[i].rect.centery, res[0], res[1].rect.centery - players[i].rect.centery, 2))
-            if output[0] > 0.5:
-                players[i].isjump = True
-                if not players[i].onGround:
-                    genomes[i][1].fitness -= 30
-                else:
-                    genomes[i][1].fitness -= 30
-
-                player_sprites[i].update()
-
-                if players[i].died:
-                    if output[0] > 0.5:
-                        genomes[i][1].fitness -= 30
-                    else:
-                        genomes[i][1].fitness -= 80
-                    players.pop(i)
-                    player_sprites.pop(i)
-                    nets.pop(i)
-                    genomes.pop(i)
-                else:
-                    if players[i].nearest_spike.rect.centerx < players[i].rect.centerx:
-                        genomes[i][1].fitness += 50
-        if len(players) == 0:
-            break
-        move_map()
-
-            # print(max([genomes[i][1].fitness for i in range (len(genomes))]))
-        # print(max([genomes[i][1].fitness for i,_ in enumerate(genomes)]) if len(genomes) > 0 else 0)
         for i, _ in enumerate(players):
             if players[i].isjump:
                 """rotate the player by an angle and blit it if player is jumping"""
-                angle -= 8.3  # this may be the angle needed to do a 360 deg turn in the length covered in one jump by player
+                angle -= 8.1712  # this may be the angle needed to do a 360 deg turn in the length covered in one jump by player
                 blitRotate(screen, players[i].image, players[i].rect.center, (16, 16), angle)
             else:
                 """if player.isjump is false, then just blit it normally(by using Group().draw() for sprites"""
@@ -548,9 +459,9 @@ def run(genomes, config):
                     pygame.quit()
                     sys.exit()
         pygame.display.flip()
-        # print(players[0].died,players[0].onGround, players[0].rect, players[0].win, players[0].vel.y, players[0].vel.x)
-        # print(generation, len(players), sum([players[j].onGround for j in range (len(players))]))
         clock.tick(60)
+
+
 if __name__ == "__main__":
     # setup config
     config_path = "./config-feedforward.txt"
@@ -558,7 +469,10 @@ if __name__ == "__main__":
                                 neat.DefaultStagnation, config_path)
 
     # init NEAT
+
     p = neat.Population(config)
+    p.add_reporter(neat.StdOutReporter(True))
+    p.add_reporter(neat.StatisticsReporter())
 
     # run NEAT
-    p.run(run, 100)
+    p.run(run, 1000)

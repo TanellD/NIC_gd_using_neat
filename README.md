@@ -7,12 +7,14 @@ _Code by Danil Davydov, Ilia Mitrokhin, Erokhin Evgenii_
 Implementation of Geometry Dash in Python with neat alghorithm 
 
 
-![](https://lh3.googleusercontent.com/pw/ACtC-3fqOHMkopBQlUqSF5vjhTCL73Dp092W9VSn0QIsvJ76e-jnlT7qEkdvSpGGHHjWSg8o2cHZblSCloO9XM159oEuGqelm-PfNrs-c4bfwA9q2Seb53tGetuNUrxeRPYsDKLeBhwARyVINvZ0MMTsg-lnVQ=w796-h596-no?authuser=0)
+![image](https://github.com/TanellD/NIC_gd_using_neat/assets/66463564/038379e0-8daa-412d-a11f-7f2bd17551a3)
+
 
 
 ## Level information
 Currently, there are 3 levels. You can choose one as an index at the begining of simulation
-[Go to code](/main.py)
+![image](https://github.com/TanellD/NIC_gd_using_neat/assets/66463564/a937a05e-ecd4-40a4-9b0f-bf00e889508c)
+
 
 
 ## Getting Started

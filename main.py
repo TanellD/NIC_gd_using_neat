@@ -8,6 +8,9 @@ import numpy as np
 import pygame
 from pygame.draw import rect
 from pygame.math import Vector2
+import matplotlib.pyplot as plt
+import time
+
 
 
 class GameStop(Exception):
@@ -20,6 +23,8 @@ class NodeGene:
         self.node_id = node_id
         self.node_type = node_type
         self.value = 0
+    def copy(self):
+        return NodeGene(self.node_id, self.node_type)
 
 
 # Class representing a connection between nodes in a neural network
@@ -31,6 +36,7 @@ class ConnectionGene:
         self.enabled = enabled
 
 
+
 # Class representing a genome in a genetic algorithm for neural networks
 class Genome:
     # Constructor method to initialize a Genome object
@@ -40,14 +46,14 @@ class Genome:
         self.nodes = input_nodes + output_nodes  # All nodes in the genome
         self.connections = []  # List of connections between nodes
         self.fitness = 0  # Fitness score of the genome
-        self.output_bias = np.random.normal(0, 1)  # Bias value for output nodes
+        self.output_bias = 0  # Bias value for output nodes
 
         # Create connections between input and output nodes with random weights
         for i in range(len(input_nodes)):
             for j in range(len(output_nodes)):
                 # Add a new connection gene with random weight to the connections list
                 self.connections.append(
-                    ConnectionGene(self.input_nodes[i], self.output_nodes[j], weight=np.random.uniform(-30, 30)))
+                    ConnectionGene(self.input_nodes[i], self.output_nodes[j], weight=np.random.uniform(-10, 10)))
 
     # Method to activate the neural network with given input values
     def activate_network(self, inputs):
@@ -77,6 +83,18 @@ class Genome:
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
+    def copy(self):
+        inp = [i.copy() for i in self.input_nodes]
+        out = [i.copy() for i in self.output_nodes]
+        copy = Genome(inp, out)
+        copy.connections = []
+        for i in range(len(inp)):
+            for j in range(len(out)):
+                # Add a new connection gene with random weight to the connections list
+                copy.connections.append(
+                    ConnectionGene(inp[i], out[j], weight=self.connections[i].weight))
+        return copy
+
 
 # Class representing the NEAT (NeuroEvolution of Augmenting Topologies)
 # algorithm for evolving neural networks
@@ -103,87 +121,74 @@ class Neat:
         connection = np.random.choice(genome.connections)
         connection.weight += np.random.normal(0, 10)
 
-    # Method to mutate the bias in the genome based on fitness
-    def mutate_bias(self, genome):
-        if genome.fitness < 0:
-            genome.output_bias -= abs(np.random.normal(0, 0.1))
-        else:
-            genome.output_bias += np.random.normal(0, 0.1)
-
     # Method to perform crossover between two parent genomes
     def crossover(self, parent1, parent2):
         probs = np.array([parent1.fitness, parent2.fitness])
         probs = probs + np.abs(min(probs)) + 1
         probs = probs / np.sum(probs)
 
-        child_input_nodes = parent1.input_nodes
-        child_output_nodes = parent1.output_nodes
+        child_input_nodes = [i.copy() for i in parent1.input_nodes]
+        child_output_nodes = [i.copy() for i in parent1.output_nodes]
         child = Genome(child_input_nodes, child_output_nodes)
+        child.connections = []
         connections1 = {conn.input_node.node_id: conn for conn in parent1.connections}
         connections2 = {conn.input_node.node_id: conn for conn in parent2.connections}
         for node_id in connections1.keys() | connections2.keys():
             if node_id in connections1 and node_id in connections2:
                 connection = np.random.choice([connections1[node_id], connections2[node_id]], p=probs)
-                child.connections.append(connection)
-            elif node_id in connections1:
-                child.connections.append(connections1[node_id])
+                child.connections.append(ConnectionGene(child.nodes[node_id], child.output_nodes[0], weight=connection.weight, enabled=True))
             else:
-                child.connections.append(connections2[node_id])
+                raise ValueError()
         return child
 
     def evolve(self, fitness_function):
+        avg_fitness_hist = []
+        top_fitness_hist = []
         max_fitness = 0  # Initialize the maximum fitness value
         unchanged_time = 0  # Counter for tracking unchanged fitness
         # top_5_best_performed = []  # List to store the top 5 best-performing genomes
         while max_fitness < 10000:  # Continue evolution until a fitness threshold is reached
-            # if unchanged_time > 250:  # Reset the population if fitness remains unchanged for too long
-            #     self.population = self.create_initial_population()
-            #     max_fitness = 0
-            #     unchanged_time = 0
-            #     top_5_best_performed = []
-            unchanged_time += 1
             # Evaluate fitness of the population
             try:
                 self.evaluate_fitness(fitness_function)
             except GameStop as e:
                 return
-            # self.population = sorted(self.population, key=lambda x: x.fitness)  # Sort genomes based on fitness
-            # if len(top_5_best_performed) == 0:
-            #     top_5_best_performed = self.population[-5:]  # Store the top 5 best-performing genomes
-            # else:
-            #     j = 4
-            #     for i in range(5):
-            #         if self.population[-i].fitness > top_5_best_performed[j].fitness:
-            #             top_5_best_performed[j] = self.population[-i]  # Update the top 5 best-performing genomes
-            #             j -= 1
             probs = np.array(
                 [self.population[i].fitness for i in range(self.population_size)])  # Calculate fitness probabilities
+            top_fitness_hist.append(np.max(probs))
+            avg_fitness_hist.append(np.mean(probs))
+            if max_fitness < max(probs):
+                max_fitness = max(probs)
+                unchanged_time = 0
             if max_fitness < max(probs):
                 max_fitness = max(probs)  # Update the maximum fitness value
                 unchanged_time = 0
+            else:
+                unchanged_time += 1
             probs += abs(min(probs)) + 1
-            # if max_fitness < max(probs):
-            #     max_fitness = max(probs)
-            #     unchanged_time = 0
+
             probs = probs / probs.sum()  # Normalize fitness probabilities
+
             # Select parents and create a new population through crossover and mutation
-            parents = self.population.copy()
+            parents = [i.copy() for i in self.population]
             new_population = []
-            new_population.extend(sorted(self.population, key=lambda x: x.fitness)[-15:].copy())
-            # new_population.extend(top_5_best_performed)
+            self.population = sorted(self.population, key=lambda x: x.fitness)
+            for i in range(-15, 0, 1):
+                new_population.append(self.population[i].copy())
             while len(new_population) < self.population_size:
-                parent1 = (np.random.choice(parents, size=1, p=probs))[0]
-                parent2 = (np.random.choice(parents, size=1, p=probs))[0]
-                if np.random.rand() < CROSSOVER_RATE:
+                parent1 = parents[(np.random.choice(range(len(parents)), p=probs))].copy()
+                parent2 = parents[(np.random.choice(range(len(parents)), p=probs))].copy()
+                if np.random.rand() <= CROSSOVER_RATE:
                     child = self.crossover(parent1, parent2)
                 else:
-                    child = parent1
-                if np.random.rand() < MUTATION_RATE:
+                    child = parent1.copy()
+                if np.random.rand() <= MUTATION_RATE:
                     self.mutate_connection(child)
-                if np.random.rand() < MUTATION_RATE:
-                    self.mutate_bias(child)
                 new_population.append(child)
             self.population = new_population  # Update the population with the new generation
+            if unchanged_time > 200:
+                self.population = self.create_initial_population()
+        return avg_fitness_hist[:-1], top_fitness_hist[:-1]
 
     # Method to evaluate the fitness of each genome in the population using the provided fitness function
     def evaluate_fitness(self, fitness_function):
@@ -199,7 +204,7 @@ NUM_OUTPUTS = 1
 POPULATION_SIZE = 100
 GENERATIONS = 10
 CROSSOVER_RATE = 0.7
-MUTATION_RATE = 0.1
+MUTATION_RATE = 0.3
 
 # initializes the pygame module
 pygame.init()
@@ -342,9 +347,6 @@ class Player(pygame.sprite.Sprite):
         # Handle y-axis collisions
         self.collide(self.vel.y, self.platforms)
 
-        # Check if the player has won or died
-        # eval_outcome(self.win, self.died)
-
 
 # Parent class for all obstacle classes; inherits from the Sprite class
 class Draw(pygame.sprite.Sprite):
@@ -441,11 +443,11 @@ def get_closest_spike_position(player_x):
 
 
 # Function to get the closest object's distance on the level to the player's position
-def get_closest_obj_x_coor(player_x, player_y):
-    dist = float(10000)
+def get_closest_non_spike_x_coor(travelled_dist, player_y):
+    dist = float(15*32)
     for e in elements:
-        if e.rect.centerx > player_x and e.rect.centery == player_y:
-            dist = min(dist, e.rect.centerx - player_x)
+        if e.pos[0] > travelled_dist and e.rect.centery == player_y:
+            dist = min(dist, e.pos[0] - travelled_dist)
     return dist
 
 
@@ -553,10 +555,6 @@ particles = []
 
 # Initialize levels and level data
 levels = ["level_to_master.csv", "2.csv", "3.csv"]
-level_list = block_map(levels[level])
-level_width = (len(level_list[0]) * 32)
-level_height = len(level_list) * 32
-init_level(level_list)
 
 # set window title suitable for game
 pygame.display.set_caption('Pydash: Geometry Dash in Python')
@@ -578,6 +576,7 @@ def run_game(genomes):
     generation += 1
     players = []
     nets = []
+    reset()
 
     # Initialize genomes
     for g in genomes:
@@ -602,30 +601,29 @@ def run_game(genomes):
 
         # Player controls and neural network activation
         for i, player in enumerate(players):
-            closest_spike_coords = get_closest_spike_position(passed_distance)
-            dist_to_next_obstacle = get_closest_obj_x_coor(player.rect.centerx, player.rect.centery)
 
-            genomes[i].fitness = int((passed_distance - 150) / 100)
-
+            genomes[i].fitness += 1.7
             if player.vel.y == 0:
+                closest_spike_coords = get_closest_spike_position(passed_distance)
+                dist_to_next_obstacle = get_closest_non_spike_x_coor(passed_distance, player.rect.centery)
                 if closest_spike_coords is None:
                     output = nets[i].activate_network((
-                        320,  # Distance to the nearest spike along the X-axis set to be far
+                        40,  # Distance to the nearest spike along the X-axis set to be far
                         0,  # assuming it on the same height
-                        32,  # and it is alone spike
-                        dist_to_next_obstacle
+                        1,  # and it is alone spike
+                        dist_to_next_obstacle/32
                     ))
                 else:
                     output = nets[i].activate_network((
-                        closest_spike_coords[0] - passed_distance,  # Distance to the nearest spike along the X-axis
-                        player.rect.y - closest_spike_coords[1],
+                        (closest_spike_coords[0] - passed_distance)/32,  # Distance to the nearest spike along the X-axis
+                        (player.rect.y - closest_spike_coords[1])/32,
                         # Height difference between the player and the nearest spike along the Y-axis
-                        closest_spike_coords[2] * 32,  # Width of the nearest spike
-                        dist_to_next_obstacle
+                        closest_spike_coords[2],  # Width of the nearest spike
+                        dist_to_next_obstacle/32
                     ))
                 if output[0] > 0.5:
                     player.doJump()
-                    genomes[i].fitness -= 50
+                    genomes[i].fitness -= 6.6
 
         # Update player positions and actions
         for j, player in enumerate(players):
@@ -643,7 +641,7 @@ def run_game(genomes):
                 screen.blit(player.image, player.rect)
 
             if player.died:
-                genomes[j].fitness -= 50
+                genomes[j].fitness -= 1
                 players.pop(j)
                 dropped_genomes.append(genomes[j])
                 genomes.pop(j)
@@ -701,13 +699,28 @@ if __name__ == "__main__":
                     if level_str:
                         level = int(level_str)
                         if level in range(len(levels)):
+                            level_list = block_map(levels[level])
+                            level_width = (len(level_list[0]) * 32)
+                            level_height = len(level_list) * 32
+                            init_level(level_list)
                             print("Starting evolution for level:", level)
                             generation = 0
                             neat_instance = Neat(NUM_INPUTS, NUM_OUTPUTS, POPULATION_SIZE)
                             # Perform tasks for the selected level
                             # Add your code here to start the evolution for the selected level
                             # run NEAT
-                            neat_instance.evolve(run_game)
+                            hist = neat_instance.evolve(run_game)
+                            iters = range(len(hist[0]))
+                            plt.plot(iters, hist[0])
+                            plt.title("Average fitness")
+                            plt.xlabel("iteration")
+                            plt.ylabel("fitness")
+                            plt.show()
+                            plt.plot(iters, hist[1])
+                            plt.title("Highest score")
+                            plt.xlabel("iteration")
+                            plt.ylabel("fitness")
+                            plt.show()
                         else:
                             print(f"Not a valid level index. Please select from {range(len(levels))}")
                     level_str = ""  # Reset the input string after processing the level index
@@ -724,4 +737,3 @@ if __name__ == "__main__":
 
         # Update the display
         pygame.display.flip()
-    # init NEAT
